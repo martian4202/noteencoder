@@ -29,30 +29,47 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
 
     close() {}
 
-    private buildNote(line: string): {keyword: string, sentence: string}[] | undefined {
+    private async buildNote(line: string): Promise<{keyword: string, sentence: string}[]|undefined> {
         const regExp = /(<.*?>)/g;
         let keywords = line.match(regExp);
-        if (keywords?.length === 0) {
+        if (!keywords) {
            return undefined; 
         }
      
         let result: {keyword: string, sentence: string}[] = [];
-        keywords?.forEach((value: string) => {
+        
+        for (let i = 0; i < keywords!.length; i++) {
+            let value = keywords![i];
             this.writeEmitter.fire(`\tfind keyword: ${value}\r\n`);
-            let definition = this.searchDict(value);
+            let definition = await this.searchDict(value);
             if (!definition) {
                 definition = "";
             }
+            console.log(definition);
+            result.push({keyword: value.replace(/[<>]*/g, ''), sentence: definition});
+        }
+        keywords?.forEach(async (value: string) => {
+            this.writeEmitter.fire(`\tfind keyword: ${value}\r\n`);
+            let definition = await this.searchDict(value);
+            if (!definition) {
+                definition = "";
+            }
+            console.log(definition);
             result.push({keyword: value.replace(/[<>]*/g, ''), sentence: definition});
         });
         return result;
     }
 
-    private searchDict(word: string): string | undefined {
+    private async searchDict(word: string): Promise<string|undefined> {
         // return "test search result";
-        this.httpClient.get(`http://127.0.0.1:8080/?word=${word.replace(/[<>]/g, '')}`).then(response  => {
+        try {
+            const response: axios.AxiosResponse = await this.httpClient.get(`http://127.0.0.1:8080/?word=${word.replace(/[<>]/g, '')}`);
+            console.log(response);
             return <string>response.data;
-        }).catch(error => console.log(error));
+        } catch(error) {
+            console.log(error);
+        }
+
         return undefined;
     }
 
@@ -68,9 +85,12 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
                         crlfDelay: Infinity,
                     }
                 );
-                reader.on('line', (line) => {
+                reader.on('line', async (line) => {
                     this.writeEmitter.fire(`processing line: ${line}\r\n`);
-                    let m = this.buildNote(line);                
+                    let m = await this.buildNote(line);     
+                    if (!m) {
+                        return;
+                    }           
                     m?.forEach((value) => {
                         fs.writeFileSync(path.join(this.workspaceRoot, 'output.txt'), 
                         `${value.keyword}\t${line.replace(/[<>]*/g, '')}\t${value.sentence}\r\n`,
