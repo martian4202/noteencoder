@@ -24,7 +24,12 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
     ) {}
 
     open(initialDimensions: vscode.TerminalDimensions | undefined): void {
-        this.doBuild();
+        this.doBuild().then((value)=> {
+            this.writeEmitter.fire('build complete');
+        }).catch((error)=> {
+            this.writeEmitter.fire('build failed');
+            this.writeEmitter.fire(error);
+        });
     }
 
     close() {}

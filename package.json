@@ -2,6 +2,7 @@
 	"name": "noteencoder",
 	"displayName": "NoteEncoder",
 	"description": "encode note to Anki format",
+	"publisher": "xmac",
 	"version": "0.0.1",
 	"engines": {
 		"vscode": "^1.44.0"
