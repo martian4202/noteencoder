@@ -6,7 +6,8 @@ import * as realine from 'readline';
 
 interface NoteTaskDefinition extends vscode.TaskDefinition {
     inputFile: string,
-    outputFile: string
+    outputFile: string,
+    dictServer: string,
 }
 
 class NoteTaskTerminal implements vscode.Pseudoterminal {
@@ -21,6 +22,7 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
     constructor(
         private filename: string,
         private workspaceRoot: string,
+        private remoteAddr: string,
     ) {}
 
     open(initialDimensions: vscode.TerminalDimensions | undefined): void {
@@ -68,7 +70,7 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
     private async searchDict(word: string): Promise<string|undefined> {
         // return "test search result";
         try {
-            const response: axios.AxiosResponse = await this.httpClient.get(`http://127.0.0.1:8080/?word=${word.replace(/[<>]/g, '')}`);
+            const response: axios.AxiosResponse = await this.httpClient.get(`http://${this.remoteAddr}/?word=${word.replace(/[<>]/g, '')}`);
             console.log(response);
             return <string>response.data;
         } catch(error) {
@@ -90,17 +92,21 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
                         crlfDelay: Infinity,
                     }
                 );
-                reader.on('line', async (line) => {
+                reader.on('line', (line) => {
                     this.writeEmitter.fire(`processing line: ${line}\r\n`);
-                    let m = await this.buildNote(line);     
-                    if (!m) {
-                        return;
-                    }           
-                    m?.forEach((value) => {
-                        fs.writeFileSync(path.join(this.workspaceRoot, 'output.txt'), 
-                        `${value.keyword}\t${line.replace(/[<>]*/g, '')}\t${value.sentence}\r\n`,
-                        {encoding: 'utf8', flag: 'a+'});
-                    });
+                    this.buildNote(line).then((value) => {
+                        let m = value;
+                        if (!m) {
+                            return;
+                        }           
+                        m?.forEach((value) => {
+                            fs.writeFileSync(path.join(this.workspaceRoot, 'output.txt'), 
+                            `${value.keyword}\t${line.replace(/[<>]*/g, '')}\t${value.sentence}\r\n`,
+                            {encoding: 'utf8', flag: 'a+'});
+                        });
+                    }).catch((err) => {
+                        this.writeEmitter.fire(err);
+                    }) ;     
                 });
                 this.writeEmitter.fire('Build complete.\r\n');
                 this.closeEmitter.fire();
@@ -125,13 +131,14 @@ export class NoteTaskProvider implements vscode.TaskProvider {
             {
                 type: NoteTaskProvider.NoteType,
                 inputFile: this.filename!,
-                outputFile: path.join(this.workspaceRoot, 'output.txt')
+                outputFile: path.join(this.workspaceRoot, 'output.txt'),
+                dictServer: '127.0.0.1:8080'
             }
         );
     }
 
     public resolveTask(_task: vscode.Task): vscode.Task | undefined {
-        const task = _task.definition.task;
+        const task = _task.definition;
         if (task) {
            const definition: NoteTaskDefinition = <NoteTaskDefinition>_task.definition;
            return this.getTasks(definition)[0];
@@ -145,6 +152,7 @@ export class NoteTaskProvider implements vscode.TaskProvider {
                 inputFile: this.filename!,
                 outputFile: path.join(this.workspaceRoot, 'output.txt'),
                 type: NoteTaskProvider.NoteType,
+                dictServer: '127.0.0.1:8080',
             };
         }
         this.tasks = [];
@@ -159,6 +167,7 @@ export class NoteTaskProvider implements vscode.TaskProvider {
                         return new NoteTaskTerminal(
                             definition?.inputFile!,
                             this.workspaceRoot,
+                            definition?.dictServer!,
                         );
                     }
                 )

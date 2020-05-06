@@ -28,6 +28,11 @@
 					"outputFile": {
 						"type": "string",
 						"description": "output file"
+					},
+					"dictServer": {
+						"type": "string",
+						"description": "remote server address",
+						"default": "127.0.0.1:8080"
 					}
 				}
 			}
