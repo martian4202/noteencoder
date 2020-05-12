@@ -3,7 +3,7 @@
 	"displayName": "NoteEncoder",
 	"description": "encode note to Anki format",
 	"publisher": "xmac",
-	"version": "0.0.1",
+	"version": "0.0.3",
 	"engines": {
 		"vscode": "^1.44.0"
 	},
@@ -19,7 +19,7 @@
 		"taskDefinitions": [
 			{
 				"type": "note",
-				"required": [],
+				"required": ["inputFile", "dictServer"],
 				"properties": {
 					"inputFile": {
 						"type": "string",

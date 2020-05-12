@@ -55,15 +55,6 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
             console.log(definition);
             result.push({keyword: value.replace(/[<>]*/g, ''), sentence: definition});
         }
-        keywords?.forEach(async (value: string) => {
-            this.writeEmitter.fire(`\tfind keyword: ${value}\r\n`);
-            let definition = await this.searchDict(value);
-            if (!definition) {
-                definition = "";
-            }
-            console.log(definition);
-            result.push({keyword: value.replace(/[<>]*/g, ''), sentence: definition});
-        });
         return result;
     }
 
@@ -92,6 +83,7 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
                         crlfDelay: Infinity,
                     }
                 );
+                let d: Date = new Date();
                 reader.on('line', (line) => {
                     this.writeEmitter.fire(`processing line: ${line}\r\n`);
                     this.buildNote(line).then((value) => {
@@ -100,7 +92,7 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
                             return;
                         }           
                         m?.forEach((value) => {
-                            fs.writeFileSync(path.join(this.workspaceRoot, 'output.txt'), 
+                            fs.writeFileSync(path.join(this.workspaceRoot, `${path.basename(this.filename).replace(/.nl/, '')}_gen_${d.getDay()}${d.getHours()}${d.getMinutes()}${d.getSeconds()}.txt`), 
                             `${value.keyword}\t${line.replace(/[<>]*/g, '')}\t${value.sentence}\r\n`,
                             {encoding: 'utf8', flag: 'a+'});
                         });
@@ -118,8 +110,6 @@ class NoteTaskTerminal implements vscode.Pseudoterminal {
 
 export class NoteTaskProvider implements vscode.TaskProvider {
     static NoteType: string = 'note';
-    private notePromise: Thenable<vscode.Task[]> | undefined = undefined;
-    private filename: string | undefined = vscode.window.activeTextEditor?.document.uri.fsPath;
     private tasks: vscode.Task[] | undefined;
 
     constructor(
@@ -130,7 +120,7 @@ export class NoteTaskProvider implements vscode.TaskProvider {
        return this.getTasks(
             {
                 type: NoteTaskProvider.NoteType,
-                inputFile: this.filename!,
+                inputFile: vscode.window.activeTextEditor?.document.uri.fsPath!,
                 outputFile: path.join(this.workspaceRoot, 'output.txt'),
                 dictServer: '127.0.0.1:8080'
             }
@@ -141,6 +131,9 @@ export class NoteTaskProvider implements vscode.TaskProvider {
         const task = _task.definition;
         if (task) {
            const definition: NoteTaskDefinition = <NoteTaskDefinition>_task.definition;
+           if (definition.inputFile === undefined || definition.inputFile === "") {
+               definition.inputFile = vscode.window.activeTextEditor?.document.uri.fsPath!;
+           }
            return this.getTasks(definition)[0];
         }
         return undefined;
@@ -149,7 +142,7 @@ export class NoteTaskProvider implements vscode.TaskProvider {
     private getTasks(definition?: NoteTaskDefinition): vscode.Task[]  {
         if (definition === undefined) {
             definition = {
-                inputFile: this.filename!,
+                inputFile: vscode.window.activeTextEditor?.document.uri.fsPath!,
                 outputFile: path.join(this.workspaceRoot, 'output.txt'),
                 type: NoteTaskProvider.NoteType,
                 dictServer: '127.0.0.1:8080',
@@ -160,7 +153,7 @@ export class NoteTaskProvider implements vscode.TaskProvider {
             new vscode.Task(
                 definition,
                 vscode.TaskScope.Workspace,
-                definition.inputFile,
+                path.basename(definition.inputFile),
                 definition.type,
                 new vscode.CustomExecution(
                     async (): Promise<vscode.Pseudoterminal> => {
